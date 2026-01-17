@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健康平衡助手</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #fcfaff;
+            --card-bg: #ffffff;
+            --primary: #a393eb;
+            --secondary: #b8e1dd;
+            --text: #5a5a5a;
+            --danger: #ffb7b2;
+        }
+
+        body {
+            font-family: 'PingFang TC', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            display: flex; justify-content: center;
+            padding: 20px; margin: 0;
+        }
+
+        .container {
+            width: 100%; max-width: 500px;
+            background: var(--card-bg);
+            padding: 25px; border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(163, 147, 235, 0.1);
+        }
+
+        .section {
+            margin-bottom: 20px; padding: 20px;
+            border-radius: 18px; background: #fdfdff;
+            border: 1px solid #f0f0ff;
+        }
+
+        h2 { color: var(--primary); font-size: 1.1rem; margin: 0 0 15px 0; }
+
+        .calorie-dashboard {
+            display: flex; align-items: center; justify-content: space-around;
+            padding: 10px 0;
+        }
+        .circle-stat {
+            width: 115px; height: 115px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 50%; border: 6px solid #f0f0ff; text-align: center;
+        }
+        .circle-stat.consumed { border-color: var(--primary); }
+        .circle-stat.remaining { border-color: var(--secondary); }
+        .circle-stat span { font-size: 1.2rem; font-weight: bold; }
+
+        .input-stack { display: flex; flex-direction: column; gap: 10px; }
+        .row { display: flex; gap: 10px; width: 100%; }
+        
+        input { flex: 1; padding: 12px; border: 1px solid #eef0f7; border-radius: 12px; outline: none; font-size: 0.95rem; }
+        button { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 12px; cursor: pointer; font-weight: bold; }
+
+        /* 飲食清單樣式 */
+        .log-list { margin-top: 15px; max-height: 150px; overflow-y: auto; border-top: 1px solid #f0f0ff; }
+        .log-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 5px; border-bottom: 1px dotted #eee; font-size: 0.9rem;
+        }
+        .delete-btn { color: var(--danger); background: none; border: none; font-size: 1.1rem; cursor: pointer; }
+
+        .search-container { position: relative; width: 100%; }
+        .suggestions {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #eee; border-radius: 12px;
+            z-index: 100; max-height: 150px; overflow-y: auto;
+        }
+        .suggestion-item { padding: 10px; cursor: pointer; }
+        .suggestion-item:hover { background: #f4f2ff; }
+
+        .chart-box { height: 180px; margin-top: 10px; }
+        .date-picker-area { text-align: center; margin-bottom: 15px; }
+        #datePicker { border: 1px solid var(--primary); border-radius: 8px; padding: 5px; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="text-align: center; color: var(--primary); font-size: 1.5rem; margin-top: 0;">我的健康平衡</h1>
+
+    <div class="section">
+        <h2>個人數據 (24歲)</h2>
+        <div class="row">
+            <input type="number" id="height" placeholder="身高(cm)" oninput="updateBMR()">
+            <input type="number" id="weight" placeholder="體重(kg)" oninput="updateBMR()">
+        </div>
+        <p style="font-size: 0.85rem; margin-top: 10px; text-align: center; color: var(--primary);">
+            ✨ 基礎代謝 (BMR): <span id="bmr-val" style="font-weight:bold;">1200</span> kcal
+        </p>
+    </div>
+
+    <div class="date-picker-area">
+        <input type="date" id="datePicker" onchange="changeDate()">
+    </div>
+
+    <div class="section calorie-dashboard">
+        <div class="circle-stat consumed">
+            <small>已攝取</small>
+            <span id="displayConsumed">0</span>
+            <small>kcal</small>
+        </div>
+        <div class="circle-stat remaining">
+            <small>剩餘額度</small>
+            <span id="displayRemaining">0</span>
+            <small>kcal</small>
+        </div>
+    </div>
+
+    <div class="section" id="inputArea">
+        <h2>今天吃了什麼？</h2>
+        <div class="input-stack">
+            <div class="search-container">
+                <input type="text" id="foodSearch" placeholder="🔍 搜尋食物..." oninput="showSuggestions()">
+                <div id="suggestions" class="suggestions" style="display:none;"></div>
+            </div>
+            <div class="row">
+                <input type="number" id="calManual" placeholder="熱量 (kcal)">
+                <button onclick="addEntry()">紀錄</button>
+            </div>
+        </div>
+        <div id="logList" class="log-list"></div>
+    </div>
+
+    <div class="section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h2>飲水紀錄</h2>
+            <div style="font-size: 0.9rem; color: #558b86;">
+                累計: <span id="waterVal" style="font-weight:bold;">0</span> / 
+                <input type="number" id="targetWater" value="2000" style="width:60px; padding:2px; border:none; background:transparent; border-bottom:1px solid #ddd; text-align:center; color:#558b86;" oninput="updateUI()"> ml
+            </div>
+        </div>
+        <div class="row">
+            <input type="number" id="waterInput" value="250">
+            <button onclick="addWater()" style="background: var(--secondary); color: #558b86;">💧 喝水</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h2>體重管理</h2>
+            <div style="font-size: 0.9rem;">
+                目標: <input type="number" id="targetWeight" placeholder="--" style="width:50px; padding:2px; border:none; background:transparent; border-bottom:1px solid #ddd; text-align:center;" oninput="updateUI()"> kg
+            </div>
+        </div>
+        <div class="row">
+            <button onclick="saveWeightToday()" style="width:100%;">儲存今日體重</button>
+        </div>
+        <div class="chart-box">
+            <canvas id="weightChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const foodDB = [{ name: "星巴克 那堤(大)", cal: 220 }, { name: "星巴克 巧克力星冰樂", cal: 440 }, { name: "雞肉蛋餅", cal: 300 }, { name: "超商 雞胸肉", cal: 115 }, { name: "水煮蛋", cal: 75 }];
+    let currentSelectedDate = new Date().toISOString().split('T')[0];
+    let allData = JSON.parse(localStorage.getItem('healthDataV8')) || {};
+    let weightHistory = JSON.parse(localStorage.getItem('weightHistory')) || [];
+    let myChart;
+
+    window.onload = function() {
+        document.getElementById('datePicker').value = currentSelectedDate;
+        document.getElementById('height').value = localStorage.getItem('userHeight') || 160;
+        document.getElementById('weight').value = localStorage.getItem('userWeight') || 60;
+        document.getElementById('targetWeight').value = localStorage.getItem('targetWeight');
+        document.getElementById('targetWater').value = localStorage.getItem('targetWater') || 2000;
+        initChart();
+        updateBMR();
+        loadDateData();
+    };
+
+    function updateBMR() {
+        const h = document.getElementById('height').value;
+        const w = document.getElementById('weight').value;
+        if(h && w) {
+            const bmr = Math.round(10 * w + 6.25 * h - 5 * 24 - 161);
+            document.getElementById('bmr-val').innerText = bmr;
+            localStorage.setItem('userHeight', h);
+            localStorage.setItem('userWeight', w);
+            updateUI();
+        }
+    }
+
+    function changeDate() {
+        currentSelectedDate = document.getElementById('datePicker').value;
+        loadDateData();
+    }
+
+    function loadDateData() {
+        if (!allData[currentSelectedDate]) allData[currentSelectedDate] = { food: [], water: 0 };
+        updateUI();
+    }
+
+    function addEntry() {
+        const name = document.getElementById('foodSearch').value || "自定義食物";
+        const cal = parseInt(document.getElementById('calManual').value) || 0;
+        allData[currentSelectedDate].food.push({ id: Date.now(), name, cal });
+        save();
+        document.getElementById('foodSearch').value = '';
+        document.getElementById('calManual').value = '';
+    }
+
+    function deleteEntry(id) {
+        allData[currentSelectedDate].food = allData[currentSelectedDate].food.filter(i => i.id !== id);
+        save();
+    }
+
+    function addWater() {
+        const val = parseInt(document.getElementById('waterInput').value) || 0;
+        allData[currentSelectedDate].water += val;
+        save();
+    }
+
+    function saveWeightToday() {
+        const w = parseFloat(document.getElementById('weight').value);
+        if(!w) return;
+        weightHistory = weightHistory.filter(d => d.date !== currentSelectedDate);
+        weightHistory.push({ date: currentSelectedDate, weight: w });
+        localStorage.setItem('weightHistory', JSON.stringify(weightHistory));
+        updateChart();
+        alert('今日體重已更新');
+    }
+
+    function save() {
+        localStorage.setItem('healthDataV8', JSON.stringify(allData));
+        updateUI();
+    }
+
+    function updateUI() {
+        const dayData = allData[currentSelectedDate] || { food: [], water: 0 };
+        const list = document.getElementById('logList');
+        list.innerHTML = dayData.food.length ? '' : '<p style="text-align:center; color:#ccc; font-size:0.8rem;">尚無明細</p>';
+        let total = 0;
+        dayData.food.forEach(i => {
+            total += i.cal;
+            list.innerHTML += `<div class="log-item"><span>${i.name} (${i.cal}k)</span><button class="delete-btn" onclick="deleteEntry(${i.id})">×</button></div>`;
+        });
+
+        const bmr = parseInt(document.getElementById('bmr-val').innerText) || 1200;
+        document.getElementById('displayConsumed').innerText = total;
+        document.getElementById('displayRemaining').innerText = Math.max(0, bmr - total);
+        document.getElementById('waterVal').innerText = dayData.water;
+        
+        localStorage.setItem('targetWeight', document.getElementById('targetWeight').value);
+        localStorage.setItem('targetWater', document.getElementById('targetWater').value);
+    }
+
+    function showSuggestions() {
+        const input = document.getElementById('foodSearch').value.toLowerCase();
+        const div = document.getElementById('suggestions');
+        if (!input) { div.style.display = 'none'; return; }
+        const filtered = foodDB.filter(f => f.name.toLowerCase().includes(input));
+        div.innerHTML = filtered.map(f => `<div class="suggestion-item" onclick="selectFood('${f.name}', ${f.cal})">${f.name} (${f.cal}k)</div>`).join('');
+        div.style.display = filtered.length ? 'block' : 'none';
+    }
+
+    function selectFood(n, c) {
+        document.getElementById('foodSearch').value = n;
+        document.getElementById('calManual').value = c;
+        document.getElementById('suggestions').style.display = 'none';
+    }
+
+    function initChart() {
+        const ctx = document.getElementById('weightChart').getContext('2d');
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: weightHistory.map(d => d.date), datasets: [{ label: '體重', data: weightHistory.map(d => d.weight), borderColor: '#a393eb', tension: 0.4, fill: true, backgroundColor: 'rgba(163,147,235,0.05)' }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function updateChart() {
+        myChart.data.labels = weightHistory.map(d => d.date);
+        myChart.data.datasets[0].data = weightHistory.map(d => d.weight);
+        myChart.update();
+    }
+</script>
+
+</body>
+</html>
