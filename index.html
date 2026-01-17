@@ -77,6 +77,32 @@
         .chart-box { height: 180px; margin-top: 10px; }
         .date-picker-area { text-align: center; margin-bottom: 15px; }
         #datePicker { border: 1px solid var(--primary); border-radius: 8px; padding: 5px; color: var(--primary); }
+        /* 專門修正手機版排版 */
+        @media screen and (max-width: 480px) {
+            .row {
+                flex-direction: column; /* 將橫向排列改為縱向排列 */
+                gap: 10px; /* 增加元素間的間距 */
+            }
+            
+            input {
+                width: 100%; /* 讓輸入框佔滿全寬，避免被擠壓 */
+                box-sizing: border-box; /* 確保邊框不會超出寬度 */
+            }
+        
+            .calorie-dashboard {
+                flex-wrap: wrap; /* 讓圓環在空間不足時自動換行 */
+                gap: 15px;
+            }
+        
+            .circle-stat {
+                width: 90px; /* 稍微縮小圓環尺寸 */
+                height: 90px;
+            }
+        
+            h2 {
+                font-size: 1rem; /* 調小標題字體 */
+            }
+        }
     </style>
 </head>
 <body>
@@ -284,3 +310,4 @@
 
 </body>
 </html>
+
